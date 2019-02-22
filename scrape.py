@@ -2,23 +2,48 @@ import schedule
 from datetime import datetime, date
 import time
 import requests
+import base64
+import json
+import ssl
 from bs4 import BeautifulSoup
 
 #user input for a link to scrape
 askLink = input('Enter a Link for scraping: ')
-askInterval = input('Rerun interval in minutes: ')
+askInterval = input('Rerun interval (in minutes): ')
+
+header = ''
+if "api" in askLink:
+    apiUsername = input('Enter API username: ')
+    apiPassword = input('Enter API password: ')
+
+    #encode username and password in bytes --> base64 --> back to string with ISO-8859-1 (could have used utf-8, doesn't matter in this case)
+    apiCredEncode = bytes(apiUsername+':'+apiPassword, 'utf-8')
+    apiCredEncode = base64.b64encode(apiCredEncode).decode('ISO-8859-1')
+    #adding the "Basic" header convention
+    header = 'Basic ' + apiCredEncode
+
 
 #initial link calls
 try:
-    result = requests.get(askLink)
+    
+    result = requests.get(askLink, headers={'Authorization': header})
     print('Link called -> Status Code:' + str(result.status_code))
     result.raise_for_status()
 
-    #page body
-    src = result.content
+    content = result.content
 
-    #beauts definition
-    soup = BeautifulSoup(src, 'lxml')
+    if "api" in askLink:
+        #decode response content from bytes to string
+        content = content.decode('ISO-8859-1')
+        content = json.loads(content)
+        
+        #accessing the grabbed file content key
+        content = content['content']
+        content = base64.b64decode(content)
+
+
+    #bs4 grab decoded bytes from src and decode them to an lxml string s(bs4 -- specified this encoding) 
+    soup = BeautifulSoup(content, 'lxml')
     #find <a> tags
     tagLinks = soup.find_all("a")
 
@@ -55,27 +80,27 @@ try:
 
             #parse to take out the href attribute
             link = link['href']
-            if link.startswith('http'):
-                #if status code 200
-                if getLinkStatusCode(link).startswith('2'):
-                    print(str( count) + ')' + link + ' --> OK(' + getLinkStatusCode(link)  + '):' +  ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
-                    #append to good array
-                    good.append( str(count) + ')' + link  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
-                    count += 1
 
-                #if status code is true but not 200
-                elif getLinkStatusCode(link) == True and getLinkStatusCode(link) != '200':
-                    print( str(count) + ')' + 'Error' + getLinkStatusCode(link) + ' -->'  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
-                    #append to troubled array
-                    troubled.append( str(count) + ')' + link  + ' --> '  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\nError" + getLinkStatusCode(link) + "\n" )
-                    count += 1
+            #if status code 200
+            if getLinkStatusCode(link).startswith('2'):
+                print(str( count) + ')' + link + ' --> OK(' + getLinkStatusCode(link)  + '):' +  ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
+                #append to good array
+                good.append( str(count) + ')' + link  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
+                count += 1
 
-                #if status code is not true
-                else:
-                    print( str(count) + ')' + link + ' --> Error ' + getLinkStatusCode(link)  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
-                    #append to troubled array
-                    troubled.append( str(count) + ')' + link  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\nError" + getLinkStatusCode(link) + "\n" )
-                    count += 1
+            #if status code is true but not 200
+            elif getLinkStatusCode(link) == True and getLinkStatusCode(link) != '200':
+                print( str(count) + ')' + ' Error ' + getLinkStatusCode(link) + ' -->'  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
+                #append to troubled array
+                troubled.append( str(count) + ')' + link  + ' --> '  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\nError" + getLinkStatusCode(link) + "\n" )
+                count += 1
+
+            #if status code is not true
+            else:
+                print( str(count) + ')' + link + ' --> Error ' + getLinkStatusCode(link)  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) )
+                #append to troubled array
+                troubled.append( str(count) + ')' + link  + ' --> ' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\nError " + getLinkStatusCode(link) + "\n" )
+                count += 1
 
         #Job Summary
         print("\n\n\n***Job Ended***\n")
