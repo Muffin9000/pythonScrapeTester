@@ -1,15 +1,12 @@
-import schedule
+import schedule, time, requests, base64, json, ssl, smtplib
 from datetime import datetime, date
-import time
-import requests
-import base64
-import json
-import ssl
 from bs4 import BeautifulSoup
 
 #user input for a link to scrape
 askLink = input('Enter a Link for scraping: ')
 askInterval = input('Rerun interval (in minutes): ')
+emailPass = input('Enter email password, "\n"Note: this is the password of the email client that is going to send out the link error messagess: ')
+emailSendTo = input('Enter the email that will be receiving the bad link notification: ')
 
 header = ''
 if "api" in askLink:
@@ -74,6 +71,13 @@ try:
         troubled = []
         good = []
         count = 1
+        errString = ''
+
+        #Email Template
+        message = """\
+        Subject: Bad link notification email
+
+\nPlease review the bad links bellow:\n\n\n"""
 
         #loop through link list
         for link in tagLinks:
@@ -110,11 +114,22 @@ try:
         print("\nBad:" + str(len(troubled))+ "\n")
         for err in troubled:
             print(err)
-        
-        #"Nullify" variables to start values
-        troubled = []
-        good = []
-        count = 1
+            errString += "\t" + err
+
+        #Email Sending Starts HERE
+
+        if len(troubled) != 0:
+            email = 'development.python.scraper@gmail.com'
+
+            #SSL port
+            port = 465
+
+            sslContx = ssl.create_default_context()
+
+            with smtplib.SMTP_SSL('smtp.gmail.com', port, context=sslContx) as mailServer:
+                mailServer.login(email, emailPass)
+                mailServer.sendmail(email, emailSendTo, message + errString)
+                mailServer.quit()
 
     job(tagLinks)
 
@@ -130,6 +145,8 @@ except requests.exceptions.HTTPError as err:
   print(str(err))
 except requests.exceptions.RequestException as err:
   print(str(err))
+
+
 
 
 
